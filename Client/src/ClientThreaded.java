@@ -25,7 +25,7 @@ class ClientThreaded {
 			Scanner sc = new Scanner(System.in);
 			String line = null;
 
-			while (!"exit".equalsIgnoreCase(line)) {
+			while (!"quit".equalsIgnoreCase(line)) {
 				
 				// reading from user
 				line = sc.nextLine();

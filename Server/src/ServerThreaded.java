@@ -73,7 +73,7 @@ class ServerThreaded {
 	// ClientHandler class
 	private static class ClientHandler implements Runnable {
 		private final Socket clientSocket;
-
+		private static String currThreadDir = initServerDir;
 		// Constructor
 		public ClientHandler(Socket socket)
 		{
@@ -95,15 +95,26 @@ class ServerThreaded {
 					new InputStreamReader(
 						clientSocket.getInputStream()));
 
-				String line;
-				while ((line = in.readLine()) != null) {
-
-					// writing the received message from
-					// client
+				String command;
+				while (!(command = in.readLine()).equals("quit")){
+					
 					System.out.printf(
 						" Sent from the client: %s\n",
-						line);
-					out.println(line);
+						command);
+					// writing the received message from
+					// client
+					switch(command.split(" ")[0])
+					{
+						case   "pwd":  System.out.println("Present Working Directory:");
+							  		   String pwd = getPWD();
+							  		   out.println(pwd);
+							  		   //dataOutputStream.writeUTF(pwd);
+							  		   break;
+						default     : System.out.println("Valid command not found");
+							  		  break;
+					}
+					
+					//out.println(command);
 				}
 			}
 			catch (IOException e) {
@@ -115,6 +126,7 @@ class ServerThreaded {
 						out.close();
 					}
 					if (in != null) {
+						System.out.println("Client connection closed");
 						in.close();
 						clientSocket.close();
 					}
@@ -123,6 +135,11 @@ class ServerThreaded {
 					e.printStackTrace();
 				}
 			}
+		}
+
+		private static String getPWD(){
+			System.out.println(currThreadDir);
+			return currThreadDir; //returns present user directory
 		}
 	}
 }
