@@ -5,8 +5,6 @@ import java.util.*;
 // Client class
 class ClientThreaded {
 	
-	private static DataOutputStream dataOutputStream = null;
-	private static DataInputStream dataInputStream = null;
 	// driver code
 	public static void main(String[] args)
 	{
@@ -15,12 +13,12 @@ class ClientThreaded {
 		try (Socket socket = new Socket("localhost", 8080)) {
 			
 			// writing to server
-			PrintWriter out = new PrintWriter(
-				socket.getOutputStream(), true);
+			DataOutputStream out = new DataOutputStream(
+				socket.getOutputStream());
 
 			// reading from server
-			BufferedReader in
-				= new BufferedReader(new InputStreamReader(
+			DataInputStream in
+				= new DataInputStream(new DataInputStream(
 					socket.getInputStream()));
 
 
@@ -35,17 +33,27 @@ class ClientThreaded {
 				command = sc.nextLine();
 
 				// sending the user input to server
-				out.println(command);
+				out.writeUTF(command);
 				out.flush();
 				boolean bool = false;
 				switch(command.split(" ")[0])
 				{
-					case  "pwd" :   System.out.println(in.readLine());
+					case  "pwd" :   System.out.println(in.readUTF());
 								    break;
 					case  "get" :   System.out.println("Fetching file from the Server");
 								    receiveFile(command.split(" ")[1], in);
 					                break;
-					case "quit":    System.out.println(in.readLine());
+					case "mkdir" : 	bool = in.readBoolean();
+									// System.out.println(bool);
+					               	if (bool == true){
+									System.out.println("Directory created successfully");
+								   	}
+								   	else{
+									System.out.println("Directory cannot be created");
+								   	}
+								   	break;
+
+					case "quit":    System.out.println(in.readUTF());
 									break;
 					default 	: 	System.out.println("Please enter a valid command");
 									break;
@@ -72,11 +80,9 @@ class ClientThreaded {
 		}
 	}
 
-	private static void receiveFile(String fileName,BufferedReader in)
+	private static void receiveFile(String fileName, DataInputStream in)
 		throws Exception
 	{
-		try
-		{
 		if(fileName.contains("/"))
 			{
 				fileName = fileName.substring(fileName.lastIndexOf('/') + 1).trim();
@@ -84,26 +90,22 @@ class ClientThreaded {
 		int bytes = 0;
 		// System.out.println("I am here");
 
-		if (in.readLine().equals("Fail")){
+		if (in.readUTF().equals("Fail")){
 			System.out.println("File does not exist at server");
 			return;
 		}
-
-		
 		FileOutputStream fileOutputStream = new FileOutputStream(fileName);
-        // Create a FileOutputStream object to write the file on the client side
-
-        int c;
-        while ((c = in.read()) != -1) {
-            fileOutputStream.write(c);
-        }
-
-        // Close the FileOutputStream, PrintWriter, BufferedReader, and the socket
-        fileOutputStream.close();
-	}
-	catch(Exception e)
-	{
-		e.printStackTrace();
-	}
+		// System.out.println("I am after fileoutput stream");
+		long filesize = in.readLong(); // read file size
+		byte[] tmpStorage = new byte[4 * 1024];
+		while (filesize > 0 && 
+			(bytes = in.read(tmpStorage, 0,(int)Math.min(tmpStorage.length, filesize)))!= -1) {
+			// writing the file using fileoutputstream.write method
+			fileOutputStream.write(tmpStorage, 0, bytes);
+			filesize -= bytes; // reading upto file size
+		}
+		// file received successfully
+		System.out.println("File is Received");
+		fileOutputStream.close();
 	}
 }

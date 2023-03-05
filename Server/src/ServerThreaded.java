@@ -4,8 +4,6 @@ import java.net.*;
 // Server class
 class ServerThreaded {
 
-	private static DataOutputStream dataOutputStream = null;
-	private static DataInputStream dataInputStream = null;
 	public static String initServerDir = System.getProperty("user.dir");
 
 	public static void main(String[] args)
@@ -82,18 +80,18 @@ class ServerThreaded {
 
 		public void run()
 		{
-			PrintWriter out = null;
-			BufferedReader in = null;
+			DataOutputStream out = null;
+			DataInputStream in = null;
 			
 			try {
 					
 				// get the outputstream of client
-				out = new PrintWriter(
-					clientSocket.getOutputStream(), true);
+				out = new DataOutputStream(
+					clientSocket.getOutputStream());
 
 				// get the inputstream of client
-				in = new BufferedReader(
-					new InputStreamReader(
+				in = new DataInputStream(
+					new DataInputStream(
 						clientSocket.getInputStream()));
 
 				
@@ -102,7 +100,7 @@ class ServerThreaded {
 
 				String command;
 				boolean bool = false;
-				while (!(command = in.readLine()).equals("quit")){
+				while (!(command = in.readUTF()).equals("quit")){
 					
 					System.out.printf(
 						" Sent from the client: %s\n",
@@ -113,7 +111,7 @@ class ServerThreaded {
 					{
 						case   "pwd":  	System.out.println("Present Working Directory:");
 							  		    String pwd = getPWD();
-							  		    out.println(pwd);
+							  		    out.writeUTF(pwd);
 							  		    //dataOutputStream.writeUTF(pwd);
 							  		    break;
 						case "get" :    System.out.println("Sending the File to the Client\n");
@@ -128,7 +126,11 @@ class ServerThreaded {
 											System.out.println("File Sending Failed");
 							 		    }
 							 		    break;
-						case "quit":	out.println("Client Connection Closed");
+						case "mkdir": 	System.out.println("Making new directory...");
+							 		 	bool = mkDir(command.split(" ")[1]);
+							  			out.writeBoolean(bool);
+							  			break;
+						case "quit":	out.writeUTF("Client Connection Closed");
 									   	break;
 						default     : 	System.out.println("Valid command not found");
 							  		  	break;
@@ -162,34 +164,39 @@ class ServerThreaded {
 			return currThreadDir; //returns present user directory
 		}
 
-		private static boolean sendFile(String path, PrintWriter out) throws Exception
+		private static boolean sendFile(String path, DataOutputStream out) throws Exception
 		{
+		int bytes = 0;
+		try
+		{
+		File file = new File(path);
+		FileInputStream fileInputStream = new FileInputStream(file);
+        out.writeUTF("Pass");
+		// sending the file to client side
+		out.writeLong(file.length());
+		// breaking the file into byte chunks
+		byte[] tmpStorage = new byte[4 * 1024];
+		while ((bytes = fileInputStream.read(tmpStorage))!= -1) {
+		// sending the file to the client socket
+		out.write(tmpStorage, 0, bytes);
+			out.flush();
+		}
+		// closing file
 
-			try
-			{
-			
-			File file = new File(path);
-			FileInputStream fileInputStream = new FileInputStream(file);
-			out.println("Pass");
+		fileInputStream.close();
+		return true;
+		}
+		catch(FileNotFoundException fnfe)
+		{
+			System.out.println("File does not exist in the server");
+			out.writeUTF("Fail");
+			return false;
+		}
+		}
 
-        // Create a PrintWriter object and send the file contents to the client
-        int c;
-        while ((c = fileInputStream.read()) != -1) {
-            out.write(c);
-        }
-		out.flush();
-		out.nullWriter();
-
-        // Close the FileInputStream, PrintWriter, and the socket
-        fileInputStream.close();
-			return true;
-			}
-			catch(FileNotFoundException fnfe)
-			{
-				System.out.println("File does not exist in the server");
-				out.println("Fail");
-				return false;
-			}
+		private static boolean mkDir(String dirName){
+			File f = new File(dirName);
+			return f.mkdir();// making new directory
 		}
 	}
 }
