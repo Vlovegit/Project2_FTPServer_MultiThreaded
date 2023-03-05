@@ -4,8 +4,8 @@ import java.net.*;
 // Server class
 class ServerThreaded {
 
-	// private static DataOutputStream dataOutputStream = null;
-	// private static DataInputStream dataInputStream = null;
+	private static DataOutputStream dataOutputStream = null;
+	private static DataInputStream dataInputStream = null;
 	public static String initServerDir = System.getProperty("user.dir");
 
 	public static void main(String[] args)
@@ -84,6 +84,7 @@ class ServerThreaded {
 		{
 			PrintWriter out = null;
 			BufferedReader in = null;
+			
 			try {
 					
 				// get the outputstream of client
@@ -95,7 +96,12 @@ class ServerThreaded {
 					new InputStreamReader(
 						clientSocket.getInputStream()));
 
+				
+
+						// Create a BufferedOutputStream object and send the file contents to the client
+
 				String command;
+				boolean bool = false;
 				while (!(command = in.readLine()).equals("quit")){
 					
 					System.out.printf(
@@ -105,19 +111,33 @@ class ServerThreaded {
 					// client
 					switch(command.split(" ")[0])
 					{
-						case   "pwd":  System.out.println("Present Working Directory:");
-							  		   String pwd = getPWD();
-							  		   out.println(pwd);
-							  		   //dataOutputStream.writeUTF(pwd);
-							  		   break;
-						default     : System.out.println("Valid command not found");
-							  		  break;
+						case   "pwd":  	System.out.println("Present Working Directory:");
+							  		    String pwd = getPWD();
+							  		    out.println(pwd);
+							  		    //dataOutputStream.writeUTF(pwd);
+							  		    break;
+						case "get" :    System.out.println("Sending the File to the Client\n");
+							 		    System.out.println(currThreadDir+"/".concat(command.split(" ")[1]));
+							 		    bool = sendFile(currThreadDir+"/".concat(command.split(" ")[1]),out);
+							 		    if(bool)
+							 		    {
+											System.out.println("File Sent Successfully");
+							 		    }
+							 		    else
+							 		    {
+											System.out.println("File Sending Failed");
+							 		    }
+							 		    break;
+						case "quit":	out.println("Client Connection Closed");
+									   	break;
+						default     : 	System.out.println("Valid command not found");
+							  		  	break;
 					}
 					
 					//out.println(command);
 				}
 			}
-			catch (IOException e) {
+			catch (Exception e) {
 				e.printStackTrace();
 			}
 			finally {
@@ -126,7 +146,7 @@ class ServerThreaded {
 						out.close();
 					}
 					if (in != null) {
-						System.out.println("Client connection closed");
+						//System.out.println("Client connection closed");
 						in.close();
 						clientSocket.close();
 					}
@@ -140,6 +160,36 @@ class ServerThreaded {
 		private static String getPWD(){
 			System.out.println(currThreadDir);
 			return currThreadDir; //returns present user directory
+		}
+
+		private static boolean sendFile(String path, PrintWriter out) throws Exception
+		{
+
+			try
+			{
+			
+			File file = new File(path);
+			FileInputStream fileInputStream = new FileInputStream(file);
+			out.println("Pass");
+
+        // Create a PrintWriter object and send the file contents to the client
+        int c;
+        while ((c = fileInputStream.read()) != -1) {
+            out.write(c);
+        }
+		out.flush();
+		out.nullWriter();
+
+        // Close the FileInputStream, PrintWriter, and the socket
+        fileInputStream.close();
+			return true;
+			}
+			catch(FileNotFoundException fnfe)
+			{
+				System.out.println("File does not exist in the server");
+				out.println("Fail");
+				return false;
+			}
 		}
 	}
 }
