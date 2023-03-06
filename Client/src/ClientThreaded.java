@@ -25,13 +25,13 @@ class ClientThreaded {
 			// object of scanner class
 			Scanner sc = new Scanner(System.in);
 			String command = null;
-
+			String currentUserDir = System.getProperty("user.dir");
 			do {
 				
 				// reading from user
 				System.out.print("myftp>");
 				command = sc.nextLine();
-
+				
 				// sending the user input to server
 				out.writeUTF(command);
 				out.flush();
@@ -43,6 +43,11 @@ class ClientThreaded {
 					case  "get" :   System.out.println("Fetching file from the Server");
 								    receiveFile(command.split(" ")[1], in);
 					                break;
+
+					case  "put": 	System.out.println("Sending the File to the Server\n");
+									//System.out.println(currentDir+"Client/Files/".concat(splitCommand[1]));
+									sendFile(currentUserDir+"/".concat(command.split(" ")[1]), out);
+									break;
 					case "mkdir" : 	bool = in.readBoolean();
 									// System.out.println(bool);
 					               	if (bool == true){
@@ -52,6 +57,30 @@ class ClientThreaded {
 									System.out.println("Directory cannot be created");
 								   	}
 								   	break;
+
+					case  "ls" :    String content = in.readUTF();
+									String content1[] = content.split(",");
+									  // System.out.println(content1);
+									for (String child : content1){
+										  System.out.println(child);
+									  }
+									break;
+
+					case  "cd" :   bool = in.readBoolean();
+									if (bool == true){
+									 
+									 
+										 System.out.println("Directory Changed");
+										System.out.println(in.readUTF());
+									 
+									 
+									}
+									else{
+									 System.out.println("Not valid directory");
+									}
+									break;
+
+
 
 					case "quit":    System.out.println(in.readUTF());
 									break;
@@ -108,4 +137,34 @@ class ClientThreaded {
 		System.out.println("File is Received");
 		fileOutputStream.close();
 	}
+
+	private static boolean sendFile(String path, DataOutputStream out) throws Exception
+		{
+		int bytes = 0;
+		try
+		{
+		File file = new File(path);
+		FileInputStream fileInputStream = new FileInputStream(file);
+        out.writeUTF("Pass");
+		// sending the file to client side
+		out.writeLong(file.length());
+		// breaking the file into byte chunks
+		byte[] tmpStorage = new byte[4 * 1024];
+		while ((bytes = fileInputStream.read(tmpStorage))!= -1) {
+		// sending the file to the client socket
+		out.write(tmpStorage, 0, bytes);
+			out.flush();
+		}
+		// closing file
+
+		fileInputStream.close();
+		return true;
+		}
+		catch(FileNotFoundException fnfe)
+		{
+			System.out.println("File does not exist in the server");
+			out.writeUTF("Fail");
+			return false;
+		}
+		}
 }
