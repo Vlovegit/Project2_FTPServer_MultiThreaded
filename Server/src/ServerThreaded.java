@@ -5,14 +5,20 @@ import java.net.*;
 class ServerThreaded {
 
 	public static String initServerDir = System.getProperty("user.dir");
-
+	public static ManageLock ml = new ManageLock();
 	public static void main(String[] args)
 	{
 
 
-		if(args.length<1)
+		if(args.length<2)
 			{
-				System.out.println("Cannot start the server, port number is needed");
+				System.out.println("Cannot start the server, two port numbers is needed");
+				System.exit(0);
+			}
+
+			if(args[0].equals(args[1]))
+			{
+				System.out.println("Cannot start the server, port numbers cannot be same");
 				System.exit(0);
 			}
 
@@ -20,14 +26,19 @@ class ServerThreaded {
 		// Here we define Server Socket running on port 8080
 		// String currentDir = System.getProperty("user.dir");
 
-		ServerSocket serverSocket = null;
+		ServerSocket serverSocket1 = null;
+		ServerSocket serverSocket2 = null;
 
 		try {
 
-			// server is listening on port 1234
-			serverSocket = new ServerSocket(Integer.parseInt(args[0]));
-			serverSocket.setReuseAddress(true);
-
+			// server is listening on port 1
+            serverSocket1 = new ServerSocket(Integer.parseInt(args[0]));
+            serverSocket1.setReuseAddress(true);
+			
+            // server is listening on port 2
+            serverSocket2 = new ServerSocket(Integer.parseInt(args[1]));
+            serverSocket2.setReuseAddress(true);
+			
 			// running infinite loop for getting
 			// client request
 			while (true) {
@@ -36,7 +47,7 @@ class ServerThreaded {
 
 				// socket object to receive incoming client
 				// requests
-				Socket clientSocket = serverSocket.accept();
+				Socket clientSocket = serverSocket1.accept();
 
 				// Displaying that new client is connected
 				// to server
@@ -51,20 +62,48 @@ class ServerThreaded {
 				// This thread will handle the client
 				// separately
 				new Thread(clientSock).start();
+
+				
+				// socket object to receive incoming client
+                // requests on port 2
+                Socket clientSocket2 = serverSocket2.accept();
+
+                // Displaying that new client is connected
+                // to server on port 2
+                System.out.println("New client connected to port 2: "
+                        + clientSocket2.getInetAddress()
+                        .getHostAddress());
+
+                // create a new thread object for port 2
+                ClientHandler clientSock2
+                        = new ClientHandler(clientSocket2);
+
+                // This thread will handle the client
+                // separately on port 2
+                new Thread(clientSock2).start();
+				
 			}
 		}
 		catch (IOException e) {
 			e.printStackTrace();
 		}
 		finally {
-			if (serverSocket != null) {
-				try {
-					serverSocket.close();
-				}
-				catch (IOException e) {
-					e.printStackTrace();
-				}
-			}
+			if (serverSocket1 != null) {
+                try {
+                    serverSocket1.close();
+                }
+                catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (serverSocket2 != null) {
+                try {
+                    serverSocket2.close();
+                }
+                catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
 		}
 	}
 
@@ -87,6 +126,7 @@ class ServerThreaded {
 		public ClientHandler(Socket socket)
 		{
 			this.clientSocket = socket;
+			
 			//currThreadDir = initServerDir;
 		}
 
@@ -113,7 +153,6 @@ class ServerThreaded {
 
 						// Create a BufferedOutputStream object and send the file contents to the client
 				setThreadLocalVariable(initServerDir);
-				//getPWD();
 				String command;
 				boolean bool = false;
 				while (!(command = in.readUTF()).equals("quit")){
@@ -131,8 +170,8 @@ class ServerThreaded {
 							  		    //dataOutputStream.writeUTF(pwd);
 							  		    break;
 						case "get" :    System.out.println("Sending the File to the Client\n");
-							 		    System.out.println(currThreadDir+"/".concat(command.split(" ")[1]));
-							 		    bool = sendFile(currThreadDir+"/".concat(command.split(" ")[1]),out);
+							 		    //System.out.println(currThreadDir+"/".concat(command.split(" ")[1]));
+							 		    bool = sendFile(getThreadLocalVariable()+"/".concat(command.split(" ")[1]),out);
 							 		    if(bool)
 							 		    {
 											System.out.println("File Sent Successfully");
@@ -146,11 +185,11 @@ class ServerThreaded {
 
 						case "put" :    if(command.split(" ")[1].contains("/"))
 										 {
-											 receiveFile(getThreadLocalVariable()+"/".concat(command.split(" ")[1].substring(command.split(" ")[1].lastIndexOf('/') + 1).trim()), in);
+											receiveFile(getThreadLocalVariable()+"/".concat(command.split(" ")[1].substring(command.split(" ")[1].lastIndexOf('/') + 1).trim()), in, out);
 										 }
 										 else
 										 {
-										 receiveFile(getThreadLocalVariable()+"/".concat(command.split(" ")[1]), in);
+										 	receiveFile(getThreadLocalVariable()+"/".concat(command.split(" ")[1]), in, out);
 										 } 
 										  break;
 
@@ -182,12 +221,19 @@ class ServerThreaded {
 										  }	 
 										break;
 
+						case "delete":	//System.out.println("Deleting file...");
+							 			bool = delete(getThreadLocalVariable()+"/".concat(command.split(" ")[1]));
+							  			System.out.println(bool);
+							  			out.writeBoolean(bool);
+							  			break;
+
 						case "quit":	out.writeUTF("Client Connection Closed");
 									   	break;
+						
+						case "terminate": ml.releaseLock(Long.parseLong(command.split(" ")[1]));
 						default     : 	System.out.println("Valid command not found");
 							  		  	break;
 					}
-					
 					//out.println(command);
 				}
 			}
@@ -221,22 +267,43 @@ class ServerThreaded {
 		int bytes = 0;
 		try
 		{
+		System.out.println(path);
 		File file = new File(path);
 		FileInputStream fileInputStream = new FileInputStream(file);
-        out.writeUTF("Pass");
-		// sending the file to client side
-		out.writeLong(file.length());
-		// breaking the file into byte chunks
-		byte[] tmpStorage = new byte[4 * 1024];
-		while ((bytes = fileInputStream.read(tmpStorage))!= -1) {
-		// sending the file to the client socket
-		out.write(tmpStorage, 0, bytes);
-			out.flush();
+		//System.out.println("I am before setLock");
+		long commandID = ml.setLock(path,"get_lock");
+		//System.out.println("I am after setLock");
+		if(commandID!=0)
+		{
+			out.writeUTF("Pass-"+commandID);
+			// sending the file to client side
+			out.writeLong(file.length());
+			// breaking the file into byte chunks
+			byte[] tmpStorage = new byte[4 * 1024];
+			while ((bytes = fileInputStream.read(tmpStorage))!= -1) {
+			// sending the file to the client socket
+			if(!(ml.getStatus(path,"get_lock")))
+			{
+				System.out.println("File sending terminated from client side.. Stopping the operation now");
+				out.writeUTF("Put operation terminated at server");
+				fileInputStream.close();
+				return false;
+			}
+				out.write(tmpStorage, 0, bytes);
+				out.flush();
+			}
+			ml.releaseLock(commandID);
+			// closing file
+			fileInputStream.close();
+			return true;
 		}
-		// closing file
-
-		fileInputStream.close();
-		return true;
+		else
+		{
+			out.writeUTF("File is being used by someone else.. Please try again in sometime");
+			fileInputStream.close();
+			return false;
+		}
+		
 		}
 		catch(FileNotFoundException fnfe)
 		{
@@ -249,7 +316,7 @@ class ServerThreaded {
 
 		//put :  receive file from client, function starts here
 
-		private static void receiveFile(String fileName, DataInputStream in)
+		private static void receiveFile(String fileName, DataInputStream in, DataOutputStream out)
 		throws Exception
 	{
 		if(fileName.contains("/"))
@@ -265,17 +332,35 @@ class ServerThreaded {
 		}
 		FileOutputStream fileOutputStream = new FileOutputStream(fileName);
 		// System.out.println("I am after fileoutput stream");
+		long commandID = ml.setLock(fileName,"get_lock");
+		if(commandID!=0)
+		{
 		long filesize = in.readLong(); // read file size
 		byte[] tmpStorage = new byte[4 * 1024];
 		while (filesize > 0 && 
 			(bytes = in.read(tmpStorage, 0,(int)Math.min(tmpStorage.length, filesize)))!= -1) {
+			
 			// writing the file using fileoutputstream.write method
+			if(!(ml.getStatus(fileName,"put_lock")))
+			{
+				System.out.println("File recieving terminated from client side.. Stopping the operation now");
+				out.writeUTF("Put operation terminated at server");
+
+				fileOutputStream.close();
+				return;
+			}
 			fileOutputStream.write(tmpStorage, 0, bytes);
 			filesize -= bytes; // reading upto file size
 		}
 		// file received successfully
 		System.out.println("File is Received");
 		fileOutputStream.close();
+	}
+	else
+	{
+		out.writeUTF("File is being used by someone else.. Please try again in sometime");
+		fileOutputStream.close();
+	}
 	}
 
 		private static boolean mkDir(String dirName){
@@ -345,7 +430,20 @@ class ServerThreaded {
 		}
 	}
 
-
+	private static boolean delete(String filename){
+		File file = new File(filename);
+ 
+        if (file.delete()) 
+		{
+            System.out.println("File deleted in the server");
+			return true;
+        }
+        else 
+		{
+            System.out.println("Failed to delete the file in server");
+			return false;
+        }
+	}
 
 
 	}
