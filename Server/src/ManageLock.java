@@ -42,7 +42,8 @@ public class ManageLock {
         return commandID;
     }
 
-    public synchronized void releaseLock(String filePath, long commandID, String operation) {
+    public synchronized void releaseLock(long commandID) {
+        /*
         if (!statusTable.containsKey(filePath)) {
             throw new IllegalArgumentException("File is not locked");
         }
@@ -50,9 +51,30 @@ public class ManageLock {
         if (!statusTable.get(filePath).get("command_id").equals(commandID)) {
             throw new IllegalArgumentException("Thread does not hold the lock for the file");
         }
-            statusTable.get(filePath).put(operation, false);
-            statusTable.get(filePath).put("command_id", null);
-            showStatus();
+        */
+        for (String filePath : statusTable.keySet()) {
+            Map<String, Object> fileStatus = statusTable.get(filePath);
+            if(fileStatus.get("command_id").equals(commandID))
+            {
+                if((Boolean) fileStatus.get("get_lock"))
+                {
+                    statusTable.get(filePath).put("get_lock", false);
+                    statusTable.get(filePath).put("command_id", null);
+                }
+                else if((Boolean) fileStatus.get("put_lock"))
+                {
+                    statusTable.get(filePath).put("put_lock", false);
+                    statusTable.get(filePath).put("command_id", null);
+                }
+                else if((Boolean) fileStatus.get("delete_lock"))
+                {
+                    statusTable.get(filePath).put("delete_lock", false);
+                    statusTable.get(filePath).put("command_id", null);
+                }
+            }
+        }
+            
+            
     }
 
     public Boolean getStatus(String filePath, String operation)

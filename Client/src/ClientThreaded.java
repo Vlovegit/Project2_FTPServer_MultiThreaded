@@ -80,8 +80,6 @@ class ClientThreaded {
 									}
 									break;
 
-
-
 					case "quit":    System.out.println(in.readUTF());
 									break;
 					default 	: 	System.out.println("Please enter a valid command");
