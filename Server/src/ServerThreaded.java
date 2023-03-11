@@ -4,6 +4,8 @@ import java.net.*;
 // Server class
 class ServerThreaded {
 
+	private static ServerSocket serverSocket2 = null;
+
 	public static String initServerDir = System.getProperty("user.dir");
 	public static ManageLock ml = new ManageLock();
 	public static void main(String[] args)
@@ -27,7 +29,7 @@ class ServerThreaded {
 		// String currentDir = System.getProperty("user.dir");
 
 		ServerSocket serverSocket1 = null;
-		ServerSocket serverSocket2 = null;
+		
 
 		try {
 
@@ -64,23 +66,10 @@ class ServerThreaded {
 				new Thread(clientSock).start();
 
 				
-				// socket object to receive incoming client
-                // requests on port 2
-                Socket clientSocket2 = serverSocket2.accept();
-
-                // Displaying that new client is connected
-                // to server on port 2
-                System.out.println("New client connected to port 2: "
-                        + clientSocket2.getInetAddress()
-                        .getHostAddress());
-
-                // create a new thread object for port 2
-                ClientHandler clientSock2
-                        = new ClientHandler(clientSocket2);
-
+				
                 // This thread will handle the client
                 // separately on port 2
-                new Thread(clientSock2).start();
+                //new Thread(clientSock2).start();
 				
 			}
 		}
@@ -153,6 +142,8 @@ class ServerThreaded {
 
 						// Create a BufferedOutputStream object and send the file contents to the client
 				setThreadLocalVariable(initServerDir);
+				System.out.println("I am here");
+				getPWD();
 				String command;
 				boolean bool = false;
 				while (!(command = in.readUTF()).equals("quit")){
@@ -230,7 +221,26 @@ class ServerThreaded {
 						case "quit":	out.writeUTF("Client Connection Closed");
 									   	break;
 						
-						case "terminate": ml.releaseLock(Long.parseLong(command.split(" ")[1]));
+						case "terminate": 	// socket object to receive incoming client
+											// requests on port 2
+											Socket clientSocket2 = serverSocket2.accept();
+							
+											// Displaying that new client is connected
+											// to server on port 2
+											System.out.println("Client connected to tport "
+													+ clientSocket2.getInetAddress()
+													.getHostAddress());
+											DataOutputStream terminateOut = new DataOutputStream(clientSocket2.getOutputStream());
+											if(ml.releaseLock(Long.parseLong(command.split(" ")[1])))
+											{
+												terminateOut.writeUTF("Success");
+											}
+											else{
+												terminateOut.writeUTF("Fail");
+											}
+											terminateOut.close();
+											break;
+
 						default     : 	System.out.println("Valid command not found");
 							  		  	break;
 					}
@@ -292,6 +302,7 @@ class ServerThreaded {
 				out.write(tmpStorage, 0, bytes);
 				out.flush();
 			}
+			//System.out.println(commandID);
 			ml.releaseLock(commandID);
 			// closing file
 			fileInputStream.close();
@@ -332,7 +343,8 @@ class ServerThreaded {
 		}
 		FileOutputStream fileOutputStream = new FileOutputStream(fileName);
 		// System.out.println("I am after fileoutput stream");
-		long commandID = ml.setLock(fileName,"get_lock");
+		long commandID = ml.setLock(fileName,"put_lock");
+		out.writeLong(commandID);
 		if(commandID!=0)
 		{
 		long filesize = in.readLong(); // read file size
@@ -352,6 +364,7 @@ class ServerThreaded {
 			fileOutputStream.write(tmpStorage, 0, bytes);
 			filesize -= bytes; // reading upto file size
 		}
+		ml.releaseLock(commandID);
 		// file received successfully
 		System.out.println("File is Received");
 		fileOutputStream.close();

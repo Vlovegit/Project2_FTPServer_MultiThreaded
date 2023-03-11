@@ -42,7 +42,7 @@ public class ManageLock {
         return commandID;
     }
 
-    public synchronized void releaseLock(long commandID) {
+    public synchronized Boolean releaseLock(long commandID) {
         /*
         if (!statusTable.containsKey(filePath)) {
             throw new IllegalArgumentException("File is not locked");
@@ -54,26 +54,34 @@ public class ManageLock {
         */
         for (String filePath : statusTable.keySet()) {
             Map<String, Object> fileStatus = statusTable.get(filePath);
-            if(fileStatus.get("command_id").equals(commandID))
+            if(fileStatus.get("command_id") != null && fileStatus.get("command_id").equals(commandID))
             {
                 if((Boolean) fileStatus.get("get_lock"))
                 {
                     statusTable.get(filePath).put("get_lock", false);
                     statusTable.get(filePath).put("command_id", null);
+                    showStatus();
+                    return true;
                 }
                 else if((Boolean) fileStatus.get("put_lock"))
                 {
                     statusTable.get(filePath).put("put_lock", false);
                     statusTable.get(filePath).put("command_id", null);
+                    showStatus();
+                    return true;
                 }
                 else if((Boolean) fileStatus.get("delete_lock"))
                 {
                     statusTable.get(filePath).put("delete_lock", false);
                     statusTable.get(filePath).put("command_id", null);
+                    showStatus();
+                    return true;
                 }
             }
-        }
             
+        }
+        showStatus();
+        return false;   
             
     }
 
@@ -84,15 +92,16 @@ public class ManageLock {
 
     public void showStatus()
     {
-        System.out.println("\nFile Path | Read Lock | Write Lock | Command ID");
+        System.out.println("\nFile Path | Get Lock | Put Lock | Delete Lock | Command ID");
 
         System.out.println("----------------------------------------------");
         for (String filePath : statusTable.keySet()) {
             Map<String, Object> fileStatus = statusTable.get(filePath);
-            Boolean readLock = (Boolean) fileStatus.get("read_lock");
-            Boolean writeLock = (Boolean) fileStatus.get("write_lock");
+            Boolean readLock = (Boolean) fileStatus.get("get_lock");
+            Boolean writeLock = (Boolean) fileStatus.get("put_lock");
+            Boolean deleteLock = (Boolean) fileStatus.get("delete_lock");
             Object commandID = fileStatus.get("command_id");
-            System.out.printf("%-10s| %-9s| %-10s| %-10s%n", filePath, readLock, writeLock, commandID);
+            System.out.printf("%-10s| %-9s| %-10s| %-10s| %-10s%n", filePath, readLock, writeLock,deleteLock, commandID);
         }
     }
 }
