@@ -142,20 +142,78 @@ class ServerThreaded {
 
 						// Create a BufferedOutputStream object and send the file contents to the client
 				setThreadLocalVariable(initServerDir);
-				System.out.println("I am here");
+				//System.out.println("I am here");
 				getPWD();
 				String command;
-				boolean bool = false;
 				while (!(command = in.readUTF()).equals("quit")){
 					
-					System.out.printf(
+					handleCommand(command, in, out);
+					
+				}
+			}
+			catch (Exception e) {
+				e.printStackTrace();
+			}
+			finally {
+				try {
+					if (out != null) {
+						out.close();
+					}
+					if (in != null) {
+						//System.out.println("Client connection closed");
+						in.close();
+						clientSocket.close();
+					}
+				}
+				catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+		private static void handleCommand(final String command, DataInputStream in, DataOutputStream out)
+	{
+		System.out.println("Command is "+command);
+		if (command.contains("&")) {
+			// execute command in a separate thread
+			Thread thread = new Thread(() -> {
+				try {
+					// remove '&' sign from command
+					System.out.println("Spawning off new thread");
+					setThreadLocalVariable(initServerDir);
+					String cmd = command.substring(0, command.length() - 1);
+					executeCommand(cmd, in, out);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			});
+			thread.start();
+			try {
+				Thread.sleep(5000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		} else {
+			executeCommand(command, in, out);
+			System.out.println("Ready to accept command again");
+		}
+	}
+
+	private static void executeCommand(String command,DataInputStream in, DataOutputStream out) {
+	
+		try{
+				boolean bool = false;
+				
+				// sending the user input to server
+				System.out.printf(
 						" Sent from the client: %s\n",
 						command);
 					// writing the received message from
 					// client
 					switch(command.split(" ")[0])
 					{
-						case   "pwd":  	System.out.println("Present Working Directory:");
+						case "pwd" :  	System.out.println("Present Working Directory:");
 							  		    String pwd = getPWD();
 							  		    out.writeUTF(pwd);
 							  		    //dataOutputStream.writeUTF(pwd);
@@ -182,6 +240,7 @@ class ServerThreaded {
 										 {
 										 	receiveFile(getThreadLocalVariable()+"/".concat(command.split(" ")[1]), in, out);
 										 } 
+										 //System.out.println("I am after put block before break");
 										  break;
 
 
@@ -245,27 +304,22 @@ class ServerThreaded {
 							  		  	break;
 					}
 					//out.println(command);
-				}
+			}
+			catch(ConnectException ce)
+			{
+				System.out.println("Cannot connect to server. The host or port provided is incorrect. Please check and try again");
+			}
+			catch(SocketException se)
+			{
+				System.out.println("Connection to the server lost. Please reconnect.");
+			}
+	    	catch(IOException ioe){
+			System.out.println("Timeout: Server busy");//new
 			}
 			catch (Exception e) {
 				e.printStackTrace();
-			}
-			finally {
-				try {
-					if (out != null) {
-						out.close();
-					}
-					if (in != null) {
-						//System.out.println("Client connection closed");
-						in.close();
-						clientSocket.close();
-					}
-				}
-				catch (IOException e) {
-					e.printStackTrace();
-				}
-			}
-		}
+			}		
+	}
 
 		private static String getPWD(){
 			System.out.println(getThreadLocalVariable());
@@ -277,17 +331,19 @@ class ServerThreaded {
 		int bytes = 0;
 		try
 		{
+		long currThreadId = Thread.currentThread().getId();
 		System.out.println(path);
 		File file = new File(path);
 		FileInputStream fileInputStream = new FileInputStream(file);
 		//System.out.println("I am before setLock");
-		long commandID = ml.setLock(path,"get_lock");
 		//System.out.println("I am after setLock");
-		if(commandID!=0)
+		if(ml.setLock(path,"get_lock", currThreadId))
 		{
-			out.writeUTF("Pass-"+commandID);
+			out.writeUTF("Pass-"+currThreadId);
 			// sending the file to client side
 			out.writeLong(file.length());
+			//Thread.sleep(60000);
+			System.out.println("I am after sleep");
 			// breaking the file into byte chunks
 			byte[] tmpStorage = new byte[4 * 1024];
 			while ((bytes = fileInputStream.read(tmpStorage))!= -1) {
@@ -303,7 +359,7 @@ class ServerThreaded {
 				out.flush();
 			}
 			//System.out.println(commandID);
-			ml.releaseLock(commandID);
+			ml.releaseLock(currThreadId);
 			// closing file
 			fileInputStream.close();
 			return true;
@@ -335,18 +391,23 @@ class ServerThreaded {
 				fileName = fileName.substring(fileName.lastIndexOf('/') + 1).trim();
 			}
 		int bytes = 0;
-		// System.out.println("I am here");
+		//System.out.println("I am here");
 
-		if (in.readUTF().equals("Fail")){
+		if (!(in.readBoolean())){
 			System.out.println("File does not exist at client");
 			return;
 		}
+
+		//System.out.println("Now, I am here");
+		long currThreadId = Thread.currentThread().getId();
 		FileOutputStream fileOutputStream = new FileOutputStream(fileName);
+		//out.writeLong(currThreadId);
+		//System.out.println("Its here");
+		synchronized(fileOutputStream){
 		// System.out.println("I am after fileoutput stream");
-		long commandID = ml.setLock(fileName,"put_lock");
-		out.writeLong(commandID);
-		if(commandID!=0)
+		if(ml.setLock(fileName,"put_lock", currThreadId))
 		{
+		out.writeLong(currThreadId);
 		long filesize = in.readLong(); // read file size
 		byte[] tmpStorage = new byte[4 * 1024];
 		while (filesize > 0 && 
@@ -357,23 +418,25 @@ class ServerThreaded {
 			{
 				System.out.println("File recieving terminated from client side.. Stopping the operation now");
 				out.writeUTF("Put operation terminated at server");
-
+				delete(fileName);
 				fileOutputStream.close();
 				return;
 			}
 			fileOutputStream.write(tmpStorage, 0, bytes);
 			filesize -= bytes; // reading upto file size
 		}
-		ml.releaseLock(commandID);
+		ml.releaseLock(currThreadId);
 		// file received successfully
 		System.out.println("File is Received");
 		fileOutputStream.close();
+		}
+		else{
+			out.writeUTF("File is being used by someone else.. Please try again in sometime");
+			fileOutputStream.close();
+		}
 	}
-	else
-	{
-		out.writeUTF("File is being used by someone else.. Please try again in sometime");
-		fileOutputStream.close();
-	}
+
+
 	}
 
 		private static boolean mkDir(String dirName){

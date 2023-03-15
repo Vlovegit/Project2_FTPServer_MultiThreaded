@@ -5,16 +5,16 @@ import java.util.concurrent.ThreadLocalRandom;
 public class ManageLock {
     
     private Map<String, Map<String, Object>> statusTable = new HashMap<>();
-
+/* 
     private static long generateID()
 		{
 			long randomLong = ThreadLocalRandom.current().nextLong(100_000L, 999_999L);
 			return randomLong;
 		}
+*/      
+    public synchronized boolean setLock(String filePath, String operation, long currThreadId) throws InterruptedException {
         
-    public synchronized long setLock(String filePath, String operation) throws InterruptedException {
-        
-        long commandID = 0;
+        //long commandID = 0;
         if (!statusTable.containsKey(filePath)) {
             statusTable.put(filePath, new HashMap<>());
             statusTable.get(filePath).put("get_lock", false);
@@ -22,27 +22,20 @@ public class ManageLock {
             statusTable.get(filePath).put("delete_lock", false);
             statusTable.get(filePath).put("command_id", null);
         }
-        int iteration = 0;
-        while (iteration<5) {
-            if (!(Boolean) statusTable.get(filePath).get("put_lock")
+        if (!(Boolean) statusTable.get(filePath).get("put_lock")
                     && !(Boolean) statusTable.get(filePath).get("get_lock")
                     && !(Boolean) statusTable.get(filePath).get("delete_lock")) {
                 
-                commandID = generateID();
                 statusTable.get(filePath).put(operation, true);
-                statusTable.get(filePath).put("command_id", commandID);
+                statusTable.get(filePath).put("command_id", currThreadId);
                 showStatus();
-                return commandID;
+                return true;
 
-            } else {
-                Thread.sleep(1000);
             }
-            iteration++;
-        }
-        return commandID;
+        return false;
     }
 
-    public synchronized Boolean releaseLock(long commandID) {
+    public synchronized Boolean releaseLock(long currThreadId) {
         /*
         if (!statusTable.containsKey(filePath)) {
             throw new IllegalArgumentException("File is not locked");
@@ -54,7 +47,7 @@ public class ManageLock {
         */
         for (String filePath : statusTable.keySet()) {
             Map<String, Object> fileStatus = statusTable.get(filePath);
-            if(fileStatus.get("command_id") != null && fileStatus.get("command_id").equals(commandID))
+            if(fileStatus.get("command_id") != null && fileStatus.get("command_id").equals(currThreadId))
             {
                 if((Boolean) fileStatus.get("get_lock"))
                 {

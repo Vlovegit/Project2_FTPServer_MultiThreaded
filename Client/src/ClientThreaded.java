@@ -9,6 +9,7 @@ class ClientThreaded {
 	private static String machineip = null;
 	private static int nport = 0;
 	private static int tport = 0;
+	private Map<String, Object> statusTable = new HashMap<>();
 	public static void main(String[] args)
 	{
 		// establish a connection by providing host and port
@@ -81,13 +82,19 @@ class ClientThreaded {
 			Thread thread = new Thread(() -> {
 				try {
 					// remove '&' sign from command
-					String cmd = command.substring(0, command.length() - 1);
-					executeCommand(cmd, currentUserDir, in, out);
+					//String cmd = command.substring(0, command.length() - 1);
+					executeCommand(command, currentUserDir, in, out);
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
 			});
 			thread.start();
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		} else {
 			executeCommand(command, currentUserDir, in, out);
 		}
@@ -142,6 +149,18 @@ class ClientThreaded {
 									else{
 									System.out.println("Not valid directory");
 									}
+									break;
+					
+					case "delete": 	bool = in.readBoolean();
+									System.out.println(bool);
+									if (bool == true)
+									{
+										System.out.println("File deleted successfully");
+					   				}
+					   				else
+									{
+										System.out.println("File deletion Unsuccessful. File does not exist in the server");
+					   				}
 									break;
 
 					case "quit":    System.out.println(in.readUTF());
@@ -217,8 +236,9 @@ class ClientThreaded {
 		{
 		File file = new File(path);
 		FileInputStream fileInputStream = new FileInputStream(file);
-        out.writeUTF("Pass");
-		System.out.println("Command Id for the Get operation is "+ in.readLong());
+        out.writeBoolean(true);
+		//System.out.println("Now, I m here");
+		System.out.println("Command Id for the Put operation is "+ in.readLong());
 		// sending the file to client side
 		out.writeLong(file.length());
 		// breaking the file into byte chunks
@@ -236,7 +256,7 @@ class ClientThreaded {
 		catch(FileNotFoundException fnfe)
 		{
 			System.out.println("File does not exist in the server");
-			out.writeUTF("Fail");
+			out.writeBoolean(false);
 			return false;
 		}
 		}
