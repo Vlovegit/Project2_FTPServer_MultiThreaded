@@ -1,4 +1,4 @@
-# Programming project 1
+# Programming project 2
 ## _Distributed Computing System_
 ### Team -13
 
